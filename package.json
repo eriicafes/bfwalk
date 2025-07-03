@@ -1,0 +1,12 @@
+{
+  "name": "bfwalk",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {},
+  "keywords": [],
+  "author": "Eric Afes <eriicafes@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@changesets/cli": "^2.29.5"
+  }
+}
