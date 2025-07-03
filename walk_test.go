@@ -1,7 +1,9 @@
 package bfwalk
 
 import (
+	"fmt"
 	"io/fs"
+	"path/filepath"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -151,4 +153,67 @@ func TestWalkDirSkipDir(t *testing.T) {
 	if !slices.Equal(visited, expected) {
 		t.Errorf("expected:\n  %v\ngot\n: %v", expected, visited)
 	}
+}
+
+func BenchmarkWalk(b *testing.B) {
+	smFsys := generateFS("data", 3, 2)
+	lgFsys := generateFS("data", 100, 5)
+
+	cases := []struct {
+		name     string
+		fsys     fs.FS
+		walkFunc func(fsys fs.FS, root string, fn fs.WalkDirFunc) error
+	}{
+		{"Std Small", smFsys, fs.WalkDir},
+		{"BreadthFirst Small", smFsys, WalkDir},
+		{"Std Large", lgFsys, fs.WalkDir},
+		{"BreadthFirst Large", lgFsys, WalkDir},
+	}
+
+	for _, c := range cases {
+		b.Run(c.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				visited := 0
+				c.walkFunc(c.fsys, "data", func(path string, d fs.DirEntry, err error) error {
+					if err != nil {
+						return err
+					}
+					visited++
+					return nil
+				})
+			}
+		})
+	}
+}
+
+func generateFS(root string, numDirs, nestingDepth int) fs.FS {
+	var (
+		filesPerDir = 10
+		fileTypes   = []string{"html", "go", "ts", "css"}
+		fsys        = fstest.MapFS{}
+	)
+
+	for i := range make([]struct{}, numDirs) {
+		currentPath := root
+
+		for d := range make([]struct{}, nestingDepth) {
+			currentPath = filepath.Join(currentPath, fmt.Sprintf("dir%d_%d", i, d))
+
+			for f := range make([]struct{}, filesPerDir) {
+				ext := fileTypes[f%len(fileTypes)]
+				isLayout := f%5 == 0
+
+				filename := fmt.Sprintf("file%d.%s", f, ext)
+				if isLayout {
+					filename = fmt.Sprintf("layout.%s", ext)
+				}
+
+				filePath := filepath.Join(currentPath, filename)
+				content := fmt.Appendf(nil, "// dummy content for %s\n", filePath)
+				fsys[filePath] = &fstest.MapFile{Data: content, Mode: 0644}
+			}
+		}
+	}
+	return fsys
 }
